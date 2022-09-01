@@ -1,0 +1,14 @@
+dataset: DLPFC
+id: 151673
+nb_classes: 7
+z_dim: 13
+x_dim: 50
+lr: 0.0002
+bs: 32
+alpha: 10
+beta: 10
+gamma: 10
+eta: 0.001
+nb_batches: 5000
+train: True
+has_label: True
