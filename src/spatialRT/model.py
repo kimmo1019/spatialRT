@@ -103,7 +103,7 @@ class Generator(tf.keras.Model):
         return output
 
 class Encoder(tf.keras.Model):
-    """Encoder (H) network. output z and one-hot, and coor.
+    """Encoder (H) network. output z and one-hot
     """
     def __init__(self, input_dim, output_dim, feat_dim, nb_layers=2, nb_units=256, batchnorm=False):  
         super(Encoder, self).__init__()
@@ -149,6 +149,54 @@ class Encoder(tf.keras.Model):
             y = tf.nn.softmax(logits)
         return output, y
 
+class Encoder_v2(tf.keras.Model):
+    """Encoder (H) network. output: z and c_t
+    """
+    def __init__(self, input_dim, output_dim, feat_dim, nb_layers=2, nb_units=256, batchnorm=False):  
+        super(Encoder_v2, self).__init__()
+        self.input_layer = tf.keras.layers.Input((input_dim,))
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.feat_dim = feat_dim
+        self.nb_layers = nb_layers
+        self.nb_units = nb_units
+        self.batchnorm = batchnorm
+        self.all_layers = []
+        """Builds the FC stacks."""
+        for i in range(self.nb_layers):
+            units = self.output_dim if i == self.nb_layers-1 else self.nb_units
+            fc_layer = tf.keras.layers.Dense(
+                units = units,
+                activation = None
+            )   
+            norm_layer = tf.keras.layers.BatchNormalization()
+            self.all_layers.append([fc_layer, norm_layer])
+        self.out = self.call(self.input_layer)
+
+    def call(self, inputs, training=True):
+        """Return the output of the Encoder(H network).
+        Args:
+            inputs: tensor with shape [batch_size, input_dim]
+        Returns:
+            Output of Encoder.
+            float32 tensor with shape [batch_size, output_dim]
+        """
+        for i, layers in enumerate(self.all_layers[:-1]):
+            # Run inputs through the sublayers.
+            fc_layer, norm_layer = layers
+            with tf.name_scope("h_layer_%d" % i):
+                x = fc_layer(inputs) if i==0 else fc_layer(x)
+                if self.batchnorm:
+                    x = norm_layer(x)
+                x = tf.keras.layers.LeakyReLU(alpha=0.2)(x)
+        fc_layer, norm_layer = self.all_layers[-1]
+        with tf.name_scope("h_layer_ouput"):
+            output = fc_layer(x)
+            logits = output[:, self.feat_dim: -1]
+            y = tf.nn.softmax(logits)
+            t = tf.nn.sigmoid(output[:, -1:])
+        return output, tf.concat([y, t], 1)
+    
 class Discriminator(tf.keras.Model):
     """Discriminator network.
     """

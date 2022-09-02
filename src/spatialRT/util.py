@@ -84,22 +84,25 @@ class Spatial_DLPFC_sampler(object):
         select_idx = pd.notnull(adata.obs['annotation'])    
         adata = adata[select_idx,:]
         print(adata.shape, len(adata.obs['annotation']))
+
         x_pixel = adata.obsm['spatial'][:,0]
         y_pixel = adata.obsm['spatial'][:,1]
-        self.adj, self.adj_indices = calculate_binary_adj_matrix(coor=adata.obsm['spatial'], k_cutoff=50, model='KNN',return_indice=True)
+        adj, adj_indices = calculate_binary_adj_matrix(coor=adata.obsm['spatial'], k_cutoff=50, model='KNN',return_indice=True)
+        adata.obsm['adj'] = adj
+        adata.obsm['adj_indices'] = adj_indices.astype('int16')
+
         self.adj_hexigon_neighbor, _ = calculate_binary_adj_matrix(coor=adata.obsm['spatial'], rad_cutoff=200, model='Radius',return_indice=True)
         #adj, adj_indices = get_ground_truth_adj_matrix(coor=adata.obsm['spatial'], labels=adata.obs['annotation'], n_neighbors=6, return_indice=True)
         self.embeds = adata.obsm['X_pca']
-        self.adj_indices = self.adj_indices.astype('int16')
+        self.adj = adata.obsm['adj']
+        self.adj_indices = adata.obsm['adj_indices'] 
         self.adj_hexigon_neighbor = self.adj_hexigon_neighbor.astype('float32')
         self.sample_size = adata.shape[0]
         self.label_annot = adata.obs['annotation']
-        print(np.unique( self.label_annot))
+        print(np.unique(self.label_annot))
         scaler = MinMaxScaler()
         self.coor = scaler.fit_transform(adata.obsm['spatial'].astype('float32'))
-        print(self.embeds.shape, self.adj.shape, self.adj_indices.shape, adata.obs['annotation'].shape, self.coor.shape)
-
-    def get_batch(self, batch_size, use_local = False):
+    def get_batch(self, batch_size, use_local = True):
         if use_local:
             center_idx = np.random.randint(low = 0, high = self.sample_size, size = 1)[0]
             indx = self.adj_indices[center_idx][:batch_size]
@@ -112,6 +115,7 @@ class Spatial_DLPFC_sampler(object):
         X_neighbors_batch = [self.embeds[self.adj_indices[i]] for i in indx]
         adj_neighbors_batch = [self.adj[self.adj_indices[i],:][:,self.adj_indices[i]] for i in indx]
         return X_batch, adj_batch, adj_hexigon_batch, X_neighbors_batch, adj_neighbors_batch, coor_batch
+
     def load_all(self):
         return self.embeds, self.adj
 
