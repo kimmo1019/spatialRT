@@ -17,6 +17,9 @@ from sklearn.cluster import KMeans
 from sklearn.metrics.cluster import normalized_mutual_info_score, adjusted_rand_score
 from sklearn.metrics.cluster import homogeneity_score, adjusted_mutual_info_score
 from sklearn.preprocessing import MinMaxScaler,MaxAbsScaler,StandardScaler
+import tensorflow as tf
+tf.keras.utils.set_random_seed(123)
+os.environ['TF_DETERMINISTIC_OPS'] = '1'
 
 
 def check_symmetric(a, rtol=1e-03, atol=1e-03):
@@ -87,7 +90,7 @@ class Spatial_DLPFC_sampler(object):
 
         x_pixel = adata.obsm['spatial'][:,0]
         y_pixel = adata.obsm['spatial'][:,1]
-        adj, adj_indices = calculate_binary_adj_matrix(coor=adata.obsm['spatial'], k_cutoff=50, model='KNN',return_indice=True)
+        adj, adj_indices = calculate_binary_adj_matrix(coor=adata.obsm['spatial'], k_cutoff=100, model='KNN',return_indice=True)
         adata.obsm['adj'] = adj
         adata.obsm['adj_indices'] = adj_indices.astype('int16')
 
@@ -97,12 +100,17 @@ class Spatial_DLPFC_sampler(object):
         self.adj = adata.obsm['adj']
         self.adj_indices = adata.obsm['adj_indices'] 
         self.adj_hexigon_neighbor = self.adj_hexigon_neighbor.astype('float32')
+        #print(np.sum(self.adj_hexigon_neighbor,axis=0)[:10])
+        #print(np.sum(self.adj_hexigon_neighbor[self.adj_hexigon_neighbor>0]))
+        #sys.exit()
         self.sample_size = adata.shape[0]
         self.label_annot = adata.obs['annotation']
         print(np.unique(self.label_annot))
         scaler = MinMaxScaler()
         self.coor = scaler.fit_transform(adata.obsm['spatial'].astype('float32'))
-    def get_batch(self, batch_size, use_local = True):
+        self.label_psedo = np.load('/home/users/liuqiao/work/spatialRT/src/label_pre.npy')
+        self.label_psedo_onehot = np.eye(7)[self.label_psedo]
+    def get_batch(self, batch_size, use_local = True, use_label=False):
         if use_local:
             center_idx = np.random.randint(low = 0, high = self.sample_size, size = 1)[0]
             indx = self.adj_indices[center_idx][:batch_size]
@@ -114,11 +122,16 @@ class Spatial_DLPFC_sampler(object):
         adj_hexigon_batch = self.adj_hexigon_neighbor[indx,:][:,indx]
         X_neighbors_batch = [self.embeds[self.adj_indices[i]] for i in indx]
         adj_neighbors_batch = [self.adj[self.adj_indices[i],:][:,self.adj_indices[i]] for i in indx]
-        return X_batch, adj_batch, adj_hexigon_batch, X_neighbors_batch, adj_neighbors_batch, coor_batch
+        if use_label:
+            return X_batch, adj_batch, adj_hexigon_batch, X_neighbors_batch, adj_neighbors_batch, coor_batch, self.label_psedo_onehot[indx]
+        else:
+            return X_batch, adj_batch, adj_hexigon_batch, X_neighbors_batch, adj_neighbors_batch, coor_batch
 
-    def load_all(self):
-        return self.embeds, self.adj
-
+    def load_all(self,use_label=False):
+        if use_label:
+            return self.embeds, self.adj, self.label_psedo
+        else:
+            return self.embeds, self.adj
 
 def Dataset_selector(name):
     if 'acic' in name:

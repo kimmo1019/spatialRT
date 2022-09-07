@@ -6,9 +6,9 @@ x_dim: 50
 lr: 0.0002
 bs: 32
 alpha: 10
-beta: 10
+beta: 100
 gamma: 10
 eta: 0.001
-nb_batches: 20000
+nb_batches: 50000
 train: True
 has_label: True
